@@ -13,3 +13,5 @@ libraryDependencies ++= Seq(
 mainClass := Some("uk.ac.sanger.hgi.shadowbroker.Main")
 
 EclipseKeys.withSource := true
+
+scalaVersion := "2.10.1"
