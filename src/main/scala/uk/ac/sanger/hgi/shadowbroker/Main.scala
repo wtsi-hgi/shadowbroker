@@ -1,6 +1,7 @@
 package uk.ac.sanger.hgi.shadowbroker
 
 import scala.collection.JavaConversions.asJavaList
+import scala.io.Source
 
 import org.apache.camel.Body
 import org.apache.camel.Exchange
@@ -20,7 +21,8 @@ object Main {
   def main(args: Array[String]) {
 
     val username = args(0)
-    val password = args(1)
+    val pwFile = args(1)
+    val password = Source.fromFile(pwFile).getLines.mkString("")
 
     val context = new DefaultCamelContext
 
@@ -38,24 +40,24 @@ object Main {
 
     val routes = new RouteBuilder {
       def configure() = {
-        from("timer://foo?fixedRate=true&delay=0&period=300000")
-          .setHeader("Referer", constant("https://rt.sanger.ac.uk"))
-          .multicast().to(
-            "direct://a",
-            "direct://b")
+        from("timer://foo?fixedRate=true&delay=10000&period=300000")
+        .setHeader("Referer", constant("https://rt.sanger.ac.uk"))
+        .multicast().to(
+          "direct://a",
+          "direct://b")
 
-        from("direct://a").to("https4://rt.sanger.ac.uk/REST/1.0/search/ticket?query=Queue='hgi' AND Owner='Nobody' AND ( Status = 'new' OR Status = 'open' )").to("seda://a")
-        from("direct://b").to("https4://rt.sanger.ac.uk/REST/1.0/search/ticket?query=Queue='humgen-storage-request' AND Owner='Nobody' AND ( Status = 'new' OR Status = 'open' )").to("seda://a")
+        from("direct://a").to("https4://rt.sanger.ac.uk/REST/1.0/search/ticket?query=Queue='hgi' AND Owner='Nobody' AND ( Status = 'new' OR Status = 'open' )").to("direct://main")
+        from("direct://b").to("https4://rt.sanger.ac.uk/REST/1.0/search/ticket?query=Queue='humgen-storage-request' AND Owner='Nobody' AND ( Status = 'new' OR Status = 'open' )").to("direct://main")
 
-        from("seda://a")
-          .filter(body().isNotNull())
-          .process(new Processor {
-            def process(exc: Exchange) {
-              val body = exc.getIn.getBody(classOf[String])
-              exc.getIn.setBody(body.lines.drop(2).mkString("\n"))
-            }
+        from("direct://main")
+        .filter(body().isNotNull())
+        .process(new Processor {
+          def process(exc: Exchange) {
+            val body = exc.getIn.getBody(classOf[String])
+            exc.getIn.setBody(body.lines.drop(2).mkString("\n"))
+          }
           })
-          .filter().method(classOf[FilterNoMatchingResults], "filter")
+        .filter().method(classOf[FilterNoMatchingResults], "filter")
           .split(body(classOf[String]).tokenize("\n")).streaming() // Each ticket
           .process(new Processor {
             def process(exc: Exchange) {
@@ -67,7 +69,7 @@ object Main {
                 case _ => //no-op
               }
             }
-          })
+            })
           .to("https4://to_be_replaced")
           // Convert the body to a set of properties.
           .process(new Processor {
@@ -77,22 +79,26 @@ object Main {
                   case Array("id", b) => "id" -> b.trim().drop(7) // Get the id without '/ticket'
                   case Array(a, b) => a.trim() -> b.trim()
                 }
-              }.toMap
-              exc.getIn().setBody(properties)
-            }
-          })
+                }.toMap
+                exc.getIn().setBody(properties)
+              }
+              })
           .filter().method(classOf[ProdLimiter], "shouldIProd")
           .process(TicketDisplayProcessor)
-          .to(s"xmpp://$username@hgi-im.internal.sanger.ac.uk?room=hgi-tickets&password=$password")
+          .to(s"xmpp://$username@hgi-im.internal.sanger.ac.uk?room=hgi-team&password=$password")
+        }
       }
-    }
-    context.addRoutes(routes)
-    context.start()
-    System.in.read()
-    context.stop()
-  }
-}
+      context.addRoutes(routes)
+      context.start()
 
-class FilterNoMatchingResults {
-  def filter(@Body body: String) = !body.trim().equals("No matching results.")
-}
+      sys.ShutdownHookThread {
+        context.stop()
+      }
+
+      Thread.currentThread.join()
+    }
+  }
+
+  class FilterNoMatchingResults {
+    def filter(@Body body: String) = !body.trim().equals("No matching results.")
+  }
