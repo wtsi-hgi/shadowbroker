@@ -1,3 +1,5 @@
+import AssemblyKeys._
+
 name := "shadowbroker"
 
 version := "1.0"
@@ -15,3 +17,5 @@ mainClass := Some("uk.ac.sanger.hgi.shadowbroker.Main")
 EclipseKeys.withSource := true
 
 scalaVersion := "2.10.1"
+
+assemblySettings
