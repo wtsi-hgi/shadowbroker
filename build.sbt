@@ -2,7 +2,7 @@ import AssemblyKeys._
 
 name := "shadowbroker"
 
-version := "1.0"
+version := "1.1"
 
 libraryDependencies ++= Seq(
   "org.apache.camel" % "camel-core" % "2.11.0" withSources(),
