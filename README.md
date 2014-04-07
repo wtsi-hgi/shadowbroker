@@ -1,6 +1,6 @@
 Shadowbroker is a tool to connect the HGI RT queues to the HGI chatroom.
 
-== To build ==
+## To build ##
 
 Shadowbroker is build with [sbt](http://www.scala-sbt.org/). To build, just run:
 
@@ -10,7 +10,7 @@ To produce a distributed assembly jar, run:
 
     sbt assembly
 
-== To run ==
+## To run ##
 
 This section is largely useless to people outside of HGI!
 
